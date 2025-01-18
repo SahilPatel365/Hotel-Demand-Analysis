@@ -1,0 +1,1035 @@
+
+Libraries
+```{r error=TRUE}
+
+
+library(readr)
+library(DataExplorer)
+library(dplyr)
+library(ggplot2)
+library(ggcorrplot)
+library(car)
+library(GGally)
+library(mice)
+library(caret)
+library(ROSE)
+library(gridExtra)
+library(ROCR)
+library(caret)
+library(pROC)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+library(arules)
+library(class)
+library(nnet)
+
+
+```
+
+
+Data Loading
+```{r error=TRUE}
+
+
+hotel_demand <- read_csv("Dataset 20-hotel_bookings.csv")
+
+# Summarize missing data for each column
+booking_data <- data.frame(hotel_demand )
+
+missing_data_summary <- sapply(booking_data, function(x) sum(is.na(x)))
+
+# Print the summary
+print(missing_data_summary)
+
+create_report(booking_data)
+
+```
+
+
+Handling Missing Data
+
+ADR
+```{r error=TRUE}
+
+
+ggplot(booking_data, aes(x=adr)) + 
+    geom_histogram(binwidth = 10, fill="blue", color="black") + 
+    labs(title="Histogram of Average Daily Rate (ADR)", x="ADR", y="Count")
+
+min(booking_data$adr)
+
+max(booking_data$adr)
+
+# Filter out observations with missing or zero Average Daily Rate (ADR)
+booking_data_cleaned <- booking_data %>%
+  filter(!is.na(adr) & adr != 0)
+
+# Removing the ADR 5400 because its the outliner in our dataset
+
+# Remove only adr = 5400
+index_to_remove <- which(booking_data_cleaned$adr == 5400)
+booking_data_cleaned <- booking_data_cleaned[-index_to_remove, ]  
+
+ggplot(booking_data_cleaned, aes(x=adr)) + 
+    geom_histogram(binwidth = 10, fill="blue", color="black") + 
+    labs(title="Histogram of Average Daily Rate (ADR)", x="ADR", y="Count")
+
+# If ADR is Negative or 0 means that may include overpricing rooms, leading to lower occupancy rates and increased costs (e.g., commissions to online travel agencies). It is uncommon in practical like for ADR coming negative. As we can't say as per the dataset because the variables are missing for that.
+
+
+ggplot(booking_data_cleaned, aes(y=adr)) + 
+    geom_boxplot(fill="lightblue", color="black") + 
+    labs(title="Boxplot of Average Daily Rate (ADR)", y="ADR")
+
+# Can see that there are outliners in ADR that are going to address afterward.
+
+```
+
+Lead Time  
+```{r error=TRUE}
+# Histogram of lead_time
+ggplot(booking_data_cleaned, aes(x = lead_time)) +
+  geom_histogram(bins = 30, fill = "blue", color = "black") +
+  labs(title = "Histogram of Lead Time", x = "Lead Time (days)", y = "Frequency")
+
+# Boxplot of lead_time
+ggplot(booking_data_cleaned, aes(y = lead_time)) +
+  geom_boxplot(fill = "cyan", color = "navy") +
+  labs(title = "Boxplot of Lead Time", y = "Lead Time (days)")
+
+# Can see that there are outliners in Lead Time that are going to address afterward.
+
+```
+
+Removing Variables
+```{r error=TRUE}
+# removing the arrival_date_week_number because its of no use
+booking_data_cleaned <- booking_data_cleaned %>%
+  select(-arrival_date_week_number)
+
+# removing the arrival_date_day_of_month because its of no use
+booking_data_cleaned <- booking_data_cleaned %>%
+  select(-arrival_date_day_of_month)
+
+# removing the agent because of missing data
+booking_data_cleaned <- booking_data_cleaned %>%
+  select(-agent)
+
+# removing the company because of missing data
+booking_data_cleaned <- booking_data_cleaned %>%
+  select(-company)
+
+# removing the company because of missing data
+booking_data_cleaned <- booking_data_cleaned %>%
+  select(-arrival_date_month)
+
+# removing the company because of missing data
+booking_data_cleaned <- booking_data_cleaned %>%
+  select(-country)
+
+```
+
+
+Meal
+```{r error=TRUE}
+
+# Create a bar plot of the meal counts before removing "undefined"
+ggplot(booking_data_cleaned, aes(x = meal)) +
+  geom_bar(fill = "steelblue") +
+  labs(title = "Distribution of Meal Types",
+       x = "Meal Type",
+       y = "Count") +
+  theme_minimal()
+
+
+# Filter out rows where 'meal' is "Undefined" and adding that to SC as per data dictonary
+booking_data_cleaned$meal <-replace(booking_data_cleaned$meal,booking_data_cleaned$meal=='Undefined','SC')
+
+
+# Count the remaining values in the 'meal' column
+meal_counts <- table(booking_data_cleaned$meal)
+
+# Print the counts
+print(meal_counts)
+
+# Create a bar plot of the meal counts after removing "undefined"
+ggplot(booking_data_cleaned, aes(x = meal)) +
+  geom_bar(fill = "steelblue") +
+  labs(title = "Distribution of Meal Types",
+       x = "Meal Type",
+       y = "Count") +
+  theme_minimal()
+
+```
+
+Market Segment
+```{r error=TRUE}
+
+# Create a bar plot of the Market Segment before removing "undefined"
+ggplot(booking_data_cleaned, aes(x = market_segment)) +
+  geom_bar(fill = "steelblue") +
+  labs(title = "Distribution of Market Segment",
+       x = "Market Segment",
+       y = "Count") +
+  theme_minimal()
+
+
+# Filter out rows where 'Market Segment' is "Undefined"
+booking_data_cleaned <- filter(booking_data_cleaned, market_segment != "Undefined")
+
+# Count the remaining values in the 'Market Segment' column
+market_segment_count <- table(booking_data_cleaned$market_segment)
+
+# Print the counts
+print(market_segment_count)
+
+# Create a bar plot of the Market Segment after removing "undefined"
+ggplot(booking_data_cleaned, aes(x = market_segment)) +
+  geom_bar(fill = "steelblue") +
+  labs(title = "Distribution of Market Segment",
+       x = "Market Segment",
+       y = "Count") +
+  theme_minimal()
+
+
+```
+
+
+Distribution Channel
+```{r error=TRUE}
+
+# Create a bar plot of the Distribution Channel before removing "undefined"
+ggplot(booking_data_cleaned, aes(x = distribution_channel)) +
+  geom_bar(fill = "steelblue") +
+  labs(title = "Distribution of Distribution Channel",
+       x = "Distribution Channel",
+       y = "Count") +
+  theme_minimal()
+
+
+# Filter out rows where 'Distribution Channel' is "Undefined"
+booking_data_cleaned <- filter(booking_data_cleaned, distribution_channel != "Undefined")
+
+# Count the remaining values in the 'Distribution Channel' column
+distribution_channel_count <- table(booking_data_cleaned$distribution_channel)
+
+# Print the counts
+print(distribution_channel_count)
+
+# Create a bar plot of the Distribution Channel after removing "undefined"
+ggplot(booking_data_cleaned, aes(x = distribution_channel)) +
+  geom_bar(fill = "steelblue") +
+  labs(title = "Distribution of Distribution Channel",
+       x = "Distribution Channel",
+       y = "Count") +
+  theme_minimal()
+
+```
+
+Converting Hotel Column into a dummy variable
+```{r error=TRUE}
+
+booking_data_cleaned$hotel = ifelse(booking_data_cleaned$hotel == "Resort Hotel", 1, 0)
+str(booking_data_cleaned)
+```
+
+
+Converting into factors 
+```{r error=TRUE}
+
+# Factorizing the whole dataset
+# We'll convert all character and integer columns that should be treated as categories
+booking_data_cleaned <- booking_data_cleaned %>%
+  mutate_if(is.character, as.factor) %>%
+  mutate_if(is.integer, function(x) {
+    if (n_distinct(x) < 0.1 * length(x)) as.factor(x) else x
+  })
+
+
+```
+
+
+Adjesting the outliers 
+
+Numeric Variable Analysis
+```{r error=TRUE}
+
+# Function to extract numeric variables from a dataframe
+extract_numeric_vars <- function(data) {
+  # Get column names of numeric variables
+  numeric_vars <- names(data)[sapply(data, is.numeric)]
+  return(numeric_vars)
+}
+
+# Usage example:
+numeric_vars <- extract_numeric_vars(booking_data_cleaned)
+
+# Subset numeric variables from the dataframe
+numeric_data <- booking_data_cleaned[, numeric_vars]
+
+# Correlation Matrix
+ggcorrplot(cor(numeric_data), type = "lower", lab = FALSE,
+           method = "circle", title = "Correlation Matrix Heatmap")
+```
+
+
+Checking for Multicollinearity
+```{r error=TRUE}
+
+# Calculate the correlation matrix
+cor_matrix <- cor(numeric_data, use = "complete.obs")
+print(cor_matrix)
+
+# Calculate VIF
+vif_data <- vif(lm(adr ~ ., data = numeric_data))  # Change 'adr' to your dependent variable if different
+print(vif_data)
+
+```
+
+
+```{r error=TRUE}
+
+create_report(booking_data_cleaned)
+
+```
+
+
+Outlier Detection Function Setup
+```{r error=TRUE}
+
+# Function to find the bounds for outliers
+find_bounds <- function(x) {
+  Q1 <- quantile(x, 0.25)
+  Q3 <- quantile(x, 0.75)
+  IQR <- Q3 - Q1
+  lower_bound <- Q1 - 3.0 * IQR
+  upper_bound <- Q3 + 3.0 * IQR
+  return(c(lower = lower_bound, upper = upper_bound))
+}
+```
+
+
+Prepare Data for removing the Outliers 
+```{r error=TRUE}
+
+booking_data_no_outliers <- booking_data_cleaned
+
+dim(booking_data_no_outliers)
+
+```
+
+
+stays_in_week_nights
+```{r error=TRUE}
+
+
+dim(booking_data_no_outliers)
+
+stays_in_week_nights_bounds <- find_bounds(booking_data_no_outliers$stays_in_week_nights)
+booking_data_no_outliers <- booking_data_no_outliers %>%
+  filter(stays_in_week_nights >= stays_in_week_nights_bounds[1] & stays_in_week_nights <= stays_in_week_nights_bounds[2])
+
+# Display dimensions after removing outliers
+dim(booking_data_no_outliers)
+
+# Boxplot of stays_in_week_nights after removal of outliers
+ggplot(booking_data_no_outliers, aes(y = stays_in_week_nights)) +
+  geom_boxplot(fill = "cyan", color = "navy") +
+  labs(title = "Boxplot of Stay in week nights", y = "Stay in week nights")
+
+```
+
+
+children
+```{r error=TRUE}
+
+dim(booking_data_no_outliers)
+
+children_bounds <- find_bounds(booking_data_no_outliers$children)
+booking_data_no_outliers <- booking_data_no_outliers %>%
+  filter(children >= children_bounds[1] & children <= children_bounds[2])
+
+# Display dimensions after removing outliers
+dim(booking_data_no_outliers)
+
+# Boxplot of adults after removal of outliers
+ggplot(booking_data_no_outliers, aes(y = children)) +
+  geom_boxplot(fill = "cyan", color = "navy") +
+  labs(title = "Boxplot of Children", y = "Children")
+
+
+
+```
+
+
+babies
+```{r error=TRUE}
+
+dim(booking_data_no_outliers)
+
+babies_bounds <- find_bounds(booking_data_no_outliers$babies)
+booking_data_no_outliers <- booking_data_no_outliers %>%
+  filter(babies >= babies_bounds[1] & babies <= babies_bounds[2])
+
+# Display dimensions after removing outliers
+dim(booking_data_no_outliers)
+
+# Boxplot of adults after removal of outliers
+ggplot(booking_data_no_outliers, aes(y = babies)) +
+  geom_boxplot(fill = "cyan", color = "navy") +
+  labs(title = "Boxplot of Babies", y = "Babies")
+
+```
+
+previous_cancellations
+```{r error=TRUE}
+
+dim(booking_data_no_outliers)
+
+previous_cancellations_bounds <- find_bounds(booking_data_no_outliers$previous_cancellations)
+booking_data_no_outliers <- booking_data_no_outliers %>%
+  filter(previous_cancellations >= previous_cancellations_bounds[1] & previous_cancellations <= previous_cancellations_bounds[2])
+
+# Display dimensions after removing outliers
+dim(booking_data_no_outliers)
+
+# Boxplot of adults after removal of outliers
+ggplot(booking_data_no_outliers, aes(y = previous_cancellations)) +
+  geom_boxplot(fill = "cyan", color = "navy") +
+  labs(title = "Boxplot of Previous Cancellations", y = "Previous Cancellations")
+
+
+
+```
+
+previous_bookings_not_canceled
+```{r error=TRUE}
+
+dim(booking_data_no_outliers)
+
+previous_bookings_not_canceled_bounds <- find_bounds(booking_data_no_outliers$previous_bookings_not_canceled)
+booking_data_no_outliers <- booking_data_no_outliers %>%
+  filter(previous_bookings_not_canceled >= previous_bookings_not_canceled_bounds[1] & previous_bookings_not_canceled <= previous_bookings_not_canceled_bounds[2])
+
+# Display dimensions after removing outliers
+dim(booking_data_no_outliers)
+
+# Boxplot of adults after removal of outliers
+ggplot(booking_data_no_outliers, aes(y = previous_bookings_not_canceled)) +
+  geom_boxplot(fill = "cyan", color = "navy") +
+  labs(title = "Boxplot of Previous Bookings Not Canceled", y = "Previous Bookings Not Canceled")
+
+
+```
+
+booking_changes
+```{r error=TRUE}
+
+dim(booking_data_no_outliers)
+
+booking_changes_bounds <- find_bounds(booking_data_no_outliers$booking_changes)
+booking_data_no_outliers <- booking_data_no_outliers %>%
+  filter(booking_changes >= booking_changes_bounds[1] & booking_changes <= booking_changes_bounds[2])
+
+# Display dimensions after removing outliers
+dim(booking_data_no_outliers)
+
+# Boxplot of adults after removal of outliers
+ggplot(booking_data_no_outliers, aes(y = booking_changes)) +
+  geom_boxplot(fill = "cyan", color = "navy") +
+  labs(title = "Boxplot of Booking Changes", y = "Booking Changes")
+
+
+```
+
+
+Numeric Variable Extraction and Correlation Analysis
+```{r error=TRUE}
+
+# Function to extract numeric variables from a dataframe
+extract_numeric_vars <- function(data) {
+  numeric_vars <- names(data)[sapply(data, is.numeric)]
+  return(numeric_vars)
+}
+
+numeric_vars <- extract_numeric_vars(booking_data_no_outliers)
+
+# Subset numeric variables from the dataframe
+numeric_data <- booking_data_no_outliers[, numeric_vars]
+
+# Correlation Matrix
+ggcorrplot(cor(numeric_data), type = "lower", lab = FALSE,
+           method = "circle", title = "Correlation Matrix Heatmap")
+
+```
+
+
+Lead Time Visualization and Analysis
+```{r error=TRUE}
+
+
+ggplot(booking_data_no_outliers, aes(x = factor(is_canceled), y = lead_time)) +
+  geom_violin() +
+  labs(title = "Violin Plot of Lead Time by Cancellation Status",
+       x = "Is Canceled", y = "Lead Time")
+
+
+
+avg_lead_time <- booking_data_no_outliers %>%
+  group_by(is_canceled) %>%
+  summarize(avg_lead_time = mean(lead_time))
+
+ggplot(avg_lead_time, aes(x = factor(is_canceled), y = avg_lead_time)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(title = "Average Lead Time by Cancellation Status",
+       x = "Is Canceled", y = "Average Lead Time")
+
+
+```
+
+
+Data Subset Analysis
+```{r error=TRUE}
+
+# Selecting interesting subsets of the data for further investigation
+canceled_bookings <- subset(booking_data_no_outliers, is_canceled == 1)
+high_value_customers <- subset(booking_data_no_outliers, adr > quantile(booking_data_no_outliers$adr, 0.75))
+
+
+# For canceled bookings
+ggplot(canceled_bookings, aes(x = lead_time)) +
+  geom_histogram(binwidth = 10, fill = "skyblue", color = "black") +
+  labs(title = "Distribution of Lead Time for Canceled Bookings",
+       x = "Lead Time",
+       y = "Frequency") +
+  theme_minimal()
+
+# For high-value customers
+ggplot(high_value_customers, aes(x = adr)) +
+  geom_histogram(binwidth = 20, fill = "salmon", color = "black") +
+  labs(title = "Distribution of Average Daily Rate for High-Value Customers",
+       x = "Average Daily Rate (ADR)",
+       y = "Frequency") +
+  theme_minimal()
+
+```
+
+```{r error=TRUE}
+
+create_report(booking_data_no_outliers)
+
+```
+
+
+Principal Component Analysis (PCA)
+```{r error=TRUE}
+
+# Checking for non-numeric columns
+sapply(booking_data_no_outliers, class)
+
+# Converting in numaric 
+booking_data_no_outliers$hotel <- as.numeric(as.factor(booking_data_no_outliers$hotel))
+booking_data_no_outliers$meal <- as.numeric(as.factor(booking_data_no_outliers$meal))
+booking_data_no_outliers$market_segment <- as.numeric(as.factor(booking_data_no_outliers$market_segment))
+booking_data_no_outliers$distribution_channel <- as.numeric(as.factor(booking_data_no_outliers$distribution_channel))
+booking_data_no_outliers$reserved_room_type <- as.numeric(as.factor(booking_data_no_outliers$reserved_room_type))
+booking_data_no_outliers$assigned_room_type <- as.numeric(as.factor(booking_data_no_outliers$assigned_room_type))
+booking_data_no_outliers$deposit_type <- as.numeric(as.factor(booking_data_no_outliers$deposit_type))
+booking_data_no_outliers$customer_type <- as.numeric(as.factor(booking_data_no_outliers$customer_type))
+booking_data_no_outliers$reservation_status <- as.numeric(as.factor(booking_data_no_outliers$reservation_status))
+booking_data_no_outliers$reservation_status_date <- as.numeric(as.factor(booking_data_no_outliers$reservation_status_date))
+
+# Checking for non-numeric columns
+sapply(booking_data_no_outliers, class)
+
+
+booking_data_no_outliers <- booking_data_no_outliers[sapply(booking_data_no_outliers, is.numeric)]
+
+# Identifying constant columns
+constant_columns <- sapply(booking_data_no_outliers, function(x) var(x, na.rm = TRUE) == 0)
+# Columns to keep (removing constant columns)
+booking_data_no_outliers <- booking_data_no_outliers[, !constant_columns]
+
+# Verifying removal
+print(paste("Removed", sum(constant_columns), "constant columns"))
+
+# Applying PCA to the numeric variables
+numeric_vars <- unlist(lapply(booking_data_no_outliers, is.numeric))
+pca_data <- prcomp(booking_data_no_outliers[, numeric_vars], scale. = TRUE)
+
+summary(pca_data)
+
+# Visualize the variance explained by each principal component
+plot(pca_data, type = "l")
+
+
+```
+
+
+Data Splitting
+```{r error=TRUE}
+
+set.seed(123)  
+
+# Creating dummy variables for categorical predictors
+dummies <- dummyVars(" ~ .", data = booking_data_no_outliers)
+complete_data_dummies <- data.frame(predict(dummies, newdata = booking_data_no_outliers))
+
+# Shuffle the indices
+random_indices <- sample(nrow(complete_data_dummies))
+
+# Split the data into training and testing sets using shuffled indices
+train_index <- random_indices[1:round(0.7 * nrow(complete_data_dummies))]
+test_index <- random_indices[(round(0.7 * nrow(complete_data_dummies)) + 1):nrow(complete_data_dummies)]
+
+train_data <- complete_data_dummies[train_index, ]
+test_data <- complete_data_dummies[test_index, ]
+
+```
+
+
+Dataset Balancing and Visualization
+```{r error=TRUE}
+
+
+# Balance the training dataset
+balanced_train_data <- ovun.sample(is_canceled ~ ., data = train_data, method = "both", N = nrow(train_data), seed = 123)$data
+
+table(balanced_train_data$is_canceled)
+
+# Check the distribution of the target variable before balancing
+table(train_data$is_canceled)
+prop.table(table(train_data$is_canceled))
+
+# Create a bar plot of the target variable before balancing
+before_plot <- ggplot(train_data, aes(x = is_canceled)) +
+  geom_bar() +
+  ggtitle("Distribution of is_canceled Before Balancing") +
+  xlab("is_canceled") +
+  ylab("Count")
+
+# Check the distribution of the target variable after balancing
+table(balanced_train_data$is_canceled)
+prop.table(table(balanced_train_data$is_canceled))
+
+# Create a bar plot of the target variable after balancing
+after_plot <- ggplot(balanced_train_data, aes(x = is_canceled)) +
+  geom_bar() +
+  ggtitle("Distribution of is_canceled After Balancing") +
+  xlab("is_canceled") +
+  ylab("Count")
+
+grid.arrange(before_plot, after_plot, ncol = 2)
+
+```
+
+
+Logistic Model With balanced train dataset
+```{r error=TRUE}
+
+
+# Establish baseline performance
+baseline_accuracy <- mean(balanced_train_data$is_canceled)
+
+# Convert target variable to factor with appropriate levels
+balanced_train_data$is_canceled <- as.factor(balanced_train_data$is_canceled)
+levels(balanced_train_data$is_canceled) <- c("not_canceled", "canceled")
+
+# Define training control for cross-validation
+train_control <- trainControl(method = "cv", number = 10, classProbs = TRUE, summaryFunction = twoClassSummary)
+
+# Train logistic regression model with cross-validation
+logistic_model <- train(is_canceled ~ ., data = balanced_train_data, method = "glm", 
+                        family = "binomial", trControl = train_control,
+                        metric = "ROC")
+
+# Predict class probabilities on the test data
+predicted_probs <- predict(logistic_model, newdata = test_data, type = "prob")
+
+# Calculate performance measures
+pred <- prediction(predicted_probs[, "canceled"], as.numeric(as.factor(test_data$is_canceled)))
+perf_lift <- performance(pred, measure = "lift", x.measure = "rpp")
+
+# Plot the lift curve
+plot(perf_lift)
+
+# Calculate AUC using ROCR
+perf_auc <- performance(pred, measure = "auc")
+auc_value <- perf_auc@y.values[[1]]
+print(paste("The AUC value is:", auc_value))
+
+# Optionally, plot the ROC curve
+perf_roc <- performance(pred, "tpr", "fpr")
+plot(perf_roc, main = "ROC Curve", colorize = TRUE)
+abline(a = 0, b = 1, col = "red", lty = 2)  # Adding a diagonal line
+
+```
+
+
+Logistic Model Without balance train dataset 
+```{r error=TRUE}
+
+# Establish baseline performance
+baseline_accuracy <- mean(train_data$is_canceled)
+
+# Convert target variable to factor with appropriate levels
+train_data$is_canceled <- as.factor(train_data$is_canceled)
+levels(train_data$is_canceled) <- c("not_canceled", "canceled")
+
+# Define training control for cross-validation
+train_control <- trainControl(method = "cv", number = 10, classProbs = TRUE, summaryFunction = twoClassSummary)
+
+# Train logistic regression model with cross-validation
+logistic_model <- train(is_canceled ~ ., data = train_data, method = "glm", 
+                        family = "binomial", trControl = train_control,
+                        metric = "ROC")
+
+# Predict class probabilities on the test data
+predicted_probs <- predict(logistic_model, newdata = test_data, type = "prob")
+
+# Calculate performance measures
+pred <- prediction(predicted_probs[, "canceled"], as.numeric(as.factor(test_data$is_canceled)))
+perf_lift <- performance(pred, measure = "lift", x.measure = "rpp")
+
+# Plot the lift curve
+plot(perf_lift)
+
+# Calculate AUC using ROCR
+perf_auc <- performance(pred, measure = "auc")
+auc_value <- perf_auc@y.values[[1]]
+print(paste("The AUC value is:", auc_value))
+
+# Optionally, plot the ROC curve
+perf_roc <- performance(pred, "tpr", "fpr")
+plot(perf_roc, main = "ROC Curve", colorize = TRUE)
+abline(a = 0, b = 1, col = "red", lty = 2)  # Adding a diagonal line
+
+```
+
+Step-wise Method
+```{r error=TRUE}
+
+# Train a logistic regression model
+logistic_model <- glm(is_canceled ~ ., data = train_data, family = "binomial")
+
+# Variable selection
+step_model <- step(logistic_model, direction = "both")
+summary(step_model)
+
+
+
+```
+
+
+
+This the model given by the step-wise model 
+```{r error=TRUE}
+
+# Fit the final model with selected variables
+final_model1 <- glm(is_canceled ~ hotel + lead_time + arrival_date_year + 
+    stays_in_weekend_nights + adults + market_segment + distribution_channel + 
+    is_repeated_guest + reserved_room_type + assigned_room_type + 
+    deposit_type + days_in_waiting_list + customer_type + adr + 
+    required_car_parking_spaces + total_of_special_requests + 
+    reservation_status + reservation_status_date, family =binomial(link = "logit"), data = train_data)
+summary(final_model1)
+
+# Predict on the test set
+predicted_probabilities <- predict(final_model1, test_data, type = "response")
+predicted_classes <- ifelse(predicted_probabilities > 0.5, 1, 0)
+
+# Actual responses
+actual_classes <- test_data$is_canceled
+
+
+
+# Ensure factor levels for predicted_classes and actual_classes are the same
+predicted_classes_factor <- factor(predicted_classes, levels = c(0, 1))
+actual_classes_factor <- factor(actual_classes, levels = c(0, 1))
+
+# Check the number of elements in each
+length(predicted_classes)
+length(actual_classes)
+
+# Check for NA values in predicted and actual classes
+sum(is.na(predicted_classes))
+sum(is.na(actual_classes))
+
+confusion_matrix <- confusionMatrix(predicted_classes_factor, actual_classes_factor)
+print(confusion_matrix)
+
+
+roc_curve <- roc(actual_classes, predicted_probabilities)
+plot(roc_curve, main = "ROC Curve")
+auc(roc_curve)
+
+
+
+```
+
+Model Fitting and Evaluation
+```{r error=TRUE}
+
+# Fit the final model with selected variables
+final_model2 <- glm(is_canceled ~ hotel + lead_time + stays_in_weekend_nights + meal + 
+    reserved_room_type + assigned_room_type + deposit_type + days_in_waiting_list + 
+    customer_type + adr + required_car_parking_spaces + total_of_special_requests , family = binomial(link = "logit"), data =train_data)
+summary(final_model2)
+
+# Predict on the test set
+predicted_probabilities <- predict(final_model2, test_data, type = "response")
+predicted_classes <- ifelse(predicted_probabilities > 0.5, 1, 0)
+
+# Actual responses
+actual_classes <- test_data$is_canceled
+
+# Ensure factor levels for predicted_classes and actual_classes are the same
+predicted_classes_factor <- factor(predicted_classes, levels = c(0, 1))
+actual_classes_factor <- factor(actual_classes, levels = c(0, 1))
+
+# Check the number of elements in each
+length(predicted_classes)
+length(actual_classes)
+
+# Check for NA values in predicted and actual classes
+sum(is.na(predicted_classes))
+sum(is.na(actual_classes))
+
+# Assuming no NAs and lengths are confirmed to be the same, attempt to recreate the confusion matrix
+confusion_matrix <- confusionMatrix(predicted_classes_factor, actual_classes_factor)
+print(confusion_matrix)
+
+roc_curve <- roc(actual_classes, predicted_probabilities)
+plot(roc_curve, main = "ROC Curve")
+auc(roc_curve)
+
+
+```
+
+Model Training and Comparison
+```{r error=TRUE}
+
+
+# Setup training control
+control <- trainControl(method="cv", number=10, savePredictions="final")
+
+# Train models using different algorithms
+models <- list()
+models[['Logistic']] <- train(is_canceled ~ hotel + lead_time + stays_in_weekend_nights + 
+    meal + reserved_room_type + assigned_room_type + deposit_type + 
+    days_in_waiting_list + customer_type + adr + required_car_parking_spaces + 
+    total_of_special_requests, data=train_data, method='glm', family='binomial', trControl=control)
+
+models[['RandomForest']] <- train(is_canceled ~ hotel + lead_time + stays_in_weekend_nights + 
+    meal + reserved_room_type + assigned_room_type + deposit_type + 
+    days_in_waiting_list + customer_type + adr + required_car_parking_spaces + 
+    total_of_special_requests, data=train_data, method='rf', trControl=control)
+
+models[['XGBoost']] <- train(is_canceled ~ hotel + lead_time + stays_in_weekend_nights + 
+    meal + reserved_room_type + assigned_room_type + deposit_type + 
+    days_in_waiting_list + customer_type + adr + required_car_parking_spaces + 
+    total_of_special_requests, data=train_data, method='xgbTree', trControl=control)
+
+# Compare models
+results <- resamples(models)
+summary(results)
+dotplot(results)
+
+
+```
+
+Random Forest Model Evaluation and Variable Importance
+```{r error=TRUE}
+
+# Extract the random forest model from the 'train', 'train.formula' object
+rf_model <- models[['RandomForest']]$finalModel
+
+class(rf_model)
+
+# If it's of class 'randomForest', you can directly use the importance function
+if (class(rf_model) == "randomForest") {
+  importance_rf <- importance(rf_model)
+} else if (class(rf_model) == "ranger") {
+  # If it's of class 'ranger', you can use the importance method
+  importance_rf <- rf_model$variable.importance
+} else {
+  stop("Unsupported random forest model class")
+}
+
+# Print or further process the variable importance
+print(importance_rf)
+
+
+models[['RandomForest']] = rf_model
+
+varImpPlot(models[['RandomForest']])
+
+
+
+```
+
+
+Decision Tree Model Building and Evaluation
+```{r error=TRUE}
+
+
+tree_model <- rpart(is_canceled ~ hotel + lead_time + stays_in_weekend_nights + 
+    meal + reserved_room_type + assigned_room_type + deposit_type + 
+    days_in_waiting_list + customer_type + adr + required_car_parking_spaces + 
+    total_of_special_requests, data = train_data, method = "class")
+rpart.plot(tree_model)
+
+# General function to calculate confusion matrix and other metrics
+evaluate_model <- function(predictions, actuals) {
+  confusion <- table(Predicted = predictions, Actual = actuals)
+  accuracy <- sum(diag(confusion)) / sum(confusion)
+  sensitivity <- confusion[2,2] / sum(confusion[2,])
+  specificity <- confusion[1,1] / sum(confusion[1,])
+  
+  cat("Confusion Matrix:\n")
+  print(confusion)
+  cat("\nAccuracy: ", accuracy, "\n")
+  cat("Sensitivity: ", sensitivity, "\n")
+  cat("Specificity: ", specificity, "\n")
+}
+
+
+# Prediction from a decision tree
+tree_predictions <- predict(tree_model, newdata = test_data, type = "class")
+evaluate_model(tree_predictions, test_data$is_canceled)
+
+
+```
+
+
+Association Rule Mining with Apriori Algorithm
+```{r error=TRUE}
+
+dataset_for_trans <- booking_data_no_outliers
+
+dataset_for_trans <- data.frame(
+  meal = c("Breakfast", "Lunch", "Dinner"),
+  market_segment = c("Online TA", "Direct", "Corporate"),
+  distribution_channel = c("TA/TO", "Direct", "Corporate")
+)
+
+
+# Convert the data frame to a transaction object
+transactions <- as(dataset_for_trans, "transactions")
+
+# Apply the Apriori algorithm
+rules <- apriori(transactions, parameter = list(support = 0.001, confidence = 0.5))
+
+# Inspect the rules
+inspect(sort(rules, by = "confidence")[1:10])
+
+# View the transactions
+inspect(transactions)
+
+```
+
+
+RFM Analysis and Visualization
+```{r error=TRUE}
+
+# Ensure dates are formatted correctly
+booking_data_no_outliers$reservation_status_date <- as.Date(booking_data_no_outliers$reservation_status_date)
+
+# Calculate Recency
+booking_data_no_outliers$recency <- as.numeric(Sys.Date() - booking_data_no_outliers$reservation_status_date)
+
+# Aggregate data by customer_id to calculate Frequency and Monetary values
+rfm_data <- booking_data_no_outliers %>%
+  group_by(customer_type) %>%
+  summarise(
+    recency = min(recency),  
+    frequency = n(),         
+    monetary = sum(adr)      
+  )
+
+# Normalize RFM scores
+rfm_data <- rfm_data %>%
+  mutate_at(vars(recency, frequency, monetary), scale) %>%
+  rowwise() %>%
+  mutate(rfm_score = sum(c_across(c(recency, frequency, monetary))))
+
+print(rfm_data)
+
+# Check summary and structure of the new RFM data
+summary(rfm_data$rfm_score)
+print(str(rfm_data))
+
+# If there's valid data, plot histogram
+if(nrow(rfm_data) > 0) {
+  hist(rfm_data$rfm_score, breaks = 10, main = "RFM Score Distribution")
+} else {
+  print("No data available to plot.")
+}
+
+```
+
+
+Neural Network Model Training and Evaluation
+```{r error=TRUE}
+
+
+# Create the training and testing sets
+set.seed(123)
+train_indices <- createDataPartition(booking_data_no_outliers$is_canceled, p = 0.7, list = FALSE)
+ann_train_data <- train_data[train_indices, ]
+ann_test_data <- train_data[-train_indices, ]
+
+# Balance the training dataset
+ann_train_data <- ovun.sample(is_canceled ~ hotel + lead_time + stays_in_weekend_nights + 
+    meal + reserved_room_type + assigned_room_type + deposit_type + 
+    days_in_waiting_list + customer_type + adr + required_car_parking_spaces + 
+    total_of_special_requests, data = ann_train_data, method = "both", N = nrow(ann_train_data), seed = 123)$data
+
+
+# Check the distribution of the target variable
+table(ann_train_data$is_canceled)
+prop.table(table(ann_train_data$is_canceled))
+
+# Train the neural network model with a reduced grid search space
+ann_model <- train(is_canceled ~ hotel + lead_time + stays_in_weekend_nights + 
+    meal + reserved_room_type + assigned_room_type + deposit_type + 
+    days_in_waiting_list + customer_type + adr + required_car_parking_spaces + 
+    total_of_special_requests, data = ann_train_data, method = "nnet",
+                   trControl = trainControl(method = "cv", number = 3),
+                   preProcess = c("center", "scale"),
+                   tuneGrid = expand.grid(size = seq(5, 15, length.out = 5), decay = seq(0, 0.1, length.out = 2)),
+                   maxit = 500)
+
+# Make predictions on the testing set
+predictions_ann <- predict(ann_model, newdata = ann_test_data)
+
+# Evaluate the model
+confusion_matrix <- confusionMatrix(factor(predictions_ann), factor(ann_test_data$is_canceled))
+print(confusion_matrix)
+
+
+# General function to calculate confusion matrix and other metrics
+evaluate_model <- function(predictions, actuals) {
+  confusion <- table(Predicted = predictions, Actual = actuals)
+  accuracy <- sum(diag(confusion)) / sum(confusion)
+  sensitivity <- confusion[2,2] / sum(confusion[2,])
+  specificity <- confusion[1,1] / sum(confusion[1,])
+  
+  cat("Confusion Matrix:\n")
+  print(confusion)
+  cat("\nAccuracy: ", accuracy, "\n")
+  cat("Sensitivity: ", sensitivity, "\n")
+  cat("Specificity: ", specificity, "\n")
+}
+
+
+
+# Predictions from a neural network
+nn_predictions <- predict(ann_model, newdata = ann_test_data)
+evaluate_model(nn_predictions, ann_test_data$is_canceled)
+
+
+```
+
+
